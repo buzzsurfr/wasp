@@ -20,6 +20,9 @@ var rootCmd = &cobra.Command{
 	Long: `Wasp is a CLI tool to manage AWS configuration profiles. This
 manages profiles in an AWS config file based on the AWS SSO session.`,
 	Version: "0.0.0",
+	CompletionOptions: cobra.CompletionOptions{
+		DisableDefaultCmd: true,
+	},
 	// Uncomment the following line if your bare application
 	// has an action associated with it:
 	// Run: func(cmd *cobra.Command, args []string) { },
