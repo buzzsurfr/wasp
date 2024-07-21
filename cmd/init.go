@@ -9,6 +9,8 @@ import (
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -101,11 +103,7 @@ discovery of AWS SSO sessions.`,
 		t.SetStyles(s)
 
 		// Choose a sso session
-		p := tea.NewProgram(model{
-			columns: columns,
-			names:   showFirstColumnOnly(columns),
-			choices: t,
-		})
+		p := tea.NewProgram(newModel(t, columns))
 		m, err := p.Run()
 		if err != nil {
 			fmt.Println("Error running program:", err)
@@ -143,6 +141,85 @@ type model struct {
 	columns []table.Column
 	names   []table.Column
 	choices table.Model
+	help    help.Model
+	keyMap  keyMap
+}
+
+type keyMap struct {
+	LineUp       key.Binding
+	LineDown     key.Binding
+	PageUp       key.Binding
+	PageDown     key.Binding
+	HalfPageUp   key.Binding
+	HalfPageDown key.Binding
+	GotoTop      key.Binding
+	GotoBottom   key.Binding
+	Expand       key.Binding
+	Collapse     key.Binding
+}
+
+// ShortHelp implements the KeyMap interface.
+func (km keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{km.LineUp, km.LineDown, km.Expand, km.Collapse}
+}
+
+// FullHelp implements the KeyMap interface.
+func (km keyMap) FullHelp() [][]key.Binding {
+	return [][]key.Binding{
+		{km.LineUp, km.LineDown, km.GotoTop, km.GotoBottom},
+		{km.PageUp, km.PageDown, km.HalfPageUp, km.HalfPageDown},
+	}
+}
+
+func newModel(choices table.Model, columns []table.Column) model {
+	return model{
+		columns: columns,
+		names:   showFirstColumnOnly(columns),
+		choices: choices,
+		help:    help.New(),
+		keyMap: keyMap{
+			LineUp: key.NewBinding(
+				key.WithKeys("up", "k"),
+				key.WithHelp("↑/k", "up"),
+			),
+			LineDown: key.NewBinding(
+				key.WithKeys("down", "j"),
+				key.WithHelp("↓/j", "down"),
+			),
+			PageUp: key.NewBinding(
+				key.WithKeys("b", "pgup"),
+				key.WithHelp("b/pgup", "page up"),
+			),
+			PageDown: key.NewBinding(
+				key.WithKeys("f", "pgdown", " "),
+				key.WithHelp("f/pgdn", "page down"),
+			),
+			HalfPageUp: key.NewBinding(
+				key.WithKeys("u", "ctrl+u"),
+				key.WithHelp("u", "½ page up"),
+			),
+			HalfPageDown: key.NewBinding(
+				key.WithKeys("d", "ctrl+d"),
+				key.WithHelp("d", "½ page down"),
+			),
+			GotoTop: key.NewBinding(
+				key.WithKeys("home", "g"),
+				key.WithHelp("g/home", "go to start"),
+			),
+			GotoBottom: key.NewBinding(
+				key.WithKeys("end", "G"),
+				key.WithHelp("G/end", "go to end"),
+			),
+			Expand: key.NewBinding(
+				key.WithKeys("right", "l"),
+				key.WithHelp("→/l", "expand"),
+			),
+			Collapse: key.NewBinding(
+				key.WithKeys("left", "h"),
+				key.WithHelp("←/h", "collapse"),
+			),
+		},
+	}
 }
 
 func (m model) Init() tea.Cmd {
@@ -156,9 +233,9 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
-		case tea.KeyRight.String():
+		case tea.KeyRight.String(), "l":
 			m.choices.SetColumns(m.columns)
-		case tea.KeyLeft.String():
+		case tea.KeyLeft.String(), "h":
 			m.choices.SetColumns(m.names)
 		case "enter":
 			m.choice = m.choices.SelectedRow()[0]
@@ -170,7 +247,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m model) View() string {
-	return "\n\n" + baseStyle.Render(m.choices.View()) + "\n"
+	return "\nSelect a SSO session:\n" + baseStyle.Render(m.choices.View()) + "\n" + m.help.View(m.keyMap)
 }
 
 func showFirstColumnOnly(columns []table.Column) []table.Column {
