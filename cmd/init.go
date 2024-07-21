@@ -72,7 +72,7 @@ discovery of AWS SSO sessions.`,
 			// 	fmt.Printf("\t%s = %s\n", key.Name(), key.Value())
 			// }
 		}
-		fmt.Printf("SSO Sessions: %v\n", ssoSessionNames)
+		// fmt.Printf("SSO Sessions: %v\n", ssoSessionNames)
 		fmt.Printf("Profiles: %v\n", profileNames)
 
 		// Create bubbles table columns based on colWidths
@@ -87,7 +87,7 @@ discovery of AWS SSO sessions.`,
 			table.WithColumns(showFirstColumnOnly(columns)),
 			table.WithRows(rows),
 			table.WithFocused(true),
-			table.WithHeight(7),
+			table.WithHeight(min(len(rows), 10)),
 		)
 
 		s := table.DefaultStyles()
@@ -115,6 +115,7 @@ discovery of AWS SSO sessions.`,
 			fmt.Printf("\n---\nYou chose %s!\n", m.choice)
 		}
 
+		fmt.Println("Made it past bubbletea!")
 	},
 }
 
