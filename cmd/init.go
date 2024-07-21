@@ -173,12 +173,6 @@ func (m model) View() string {
 	return "\n\n" + baseStyle.Render(m.choices.View()) + "\n"
 }
 
-func (m model) ExpandTable() tea.Msg {
-	var t tea.Msg
-	m.choices.SetColumns(m.columns)
-	return t
-}
-
 func showFirstColumnOnly(columns []table.Column) []table.Column {
 	ret := []table.Column{}
 	for i, col := range columns {
