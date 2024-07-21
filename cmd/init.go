@@ -4,11 +4,19 @@ Copyright © 2024 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/ssocreds"
+	"github.com/aws/aws-sdk-go-v2/service/sso"
+	"github.com/aws/aws-sdk-go-v2/service/sso/types"
+	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
@@ -33,7 +41,7 @@ discovery of AWS SSO sessions.`,
 		}
 
 		// Parse session names and profile names
-		var ssoSessionNames []string
+		// var ssoSessionNames []string
 		var profileNames []string
 
 		var rows []table.Row
@@ -61,7 +69,7 @@ discovery of AWS SSO sessions.`,
 			case "profile":
 				profileNames = append(profileNames, sectionName)
 			case "sso-session":
-				ssoSessionNames = append(ssoSessionNames, sectionName)
+				// ssoSessionNames = append(ssoSessionNames, sectionName)
 				rows = append(rows, table.Row{sectionName, section.Key("sso_start_url").Value(), section.Key("sso_region").Value()})
 				colWidths["Name"] = max(colWidths["Name"], len(sectionName))
 				colWidths["Start URL"] = max(colWidths["Start URL"], len(section.Key("sso_start_url").Value()))
@@ -75,8 +83,8 @@ discovery of AWS SSO sessions.`,
 		// fmt.Printf("SSO Sessions: %v\n", ssoSessionNames)
 		fmt.Printf("Profiles: %v\n", profileNames)
 
-		// Create bubbles table columns based on colWidths
-		columns := []table.Column{
+		// Create bubbles table ssoSessionColumns based on colWidths
+		ssoSessionColumns := []table.Column{
 			{Title: "Name", Width: colWidths["Name"]},
 			{Title: "Start URL", Width: colWidths["Start URL"]},
 			{Title: "Region", Width: colWidths["Region"]},
@@ -84,7 +92,7 @@ discovery of AWS SSO sessions.`,
 
 		// Create bubbles table
 		t := table.New(
-			table.WithColumns(showFirstColumnOnly(columns)),
+			table.WithColumns(showFirstColumnOnly(ssoSessionColumns)),
 			table.WithRows(rows),
 			table.WithFocused(true),
 			table.WithHeight(min(len(rows), 10)),
@@ -103,7 +111,7 @@ discovery of AWS SSO sessions.`,
 		t.SetStyles(s)
 
 		// Choose a sso session
-		p := tea.NewProgram(newModel(t, columns))
+		p := tea.NewProgram(newModel(t, ssoSessionColumns))
 		m, err := p.Run()
 		if err != nil {
 			fmt.Println("Error running program:", err)
@@ -111,11 +119,128 @@ discovery of AWS SSO sessions.`,
 		}
 
 		// Assert the final tea.Model to our local model and print the choice.
+		var ssoSession, ssoRegion string
 		if m, ok := m.(model); ok && m.choice != "" {
-			fmt.Printf("\n---\nYou chose %s!\n", m.choice)
+			// fmt.Printf("\n---\nYou chose %s!\n", m.choice)
+			ssoSession = m.choice
+			ssoRegion = m.region
+		} else {
+			os.Exit(1)
 		}
 
-		fmt.Println("Made it past bubbletea!")
+		cfg, err := config.LoadDefaultConfig(context.Background())
+		if err != nil {
+			panic(err)
+		}
+		cfg.Region = ssoRegion
+
+		ssoClient := sso.NewFromConfig(cfg)
+		ssoOidcClient := ssooidc.NewFromConfig(cfg)
+		tokenPath, err := ssocreds.StandardCachedTokenFilepath(ssoSession)
+		if err != nil {
+			panic(err)
+		}
+
+		// Read JSON from tokenPath and parse sso_start_url
+		tokenFile, err := os.ReadFile(tokenPath)
+		if err != nil {
+			panic(err)
+		}
+
+		var ssoData SSOData
+		err = json.Unmarshal(tokenFile, &ssoData)
+		if err != nil {
+			panic(err)
+		}
+
+		ssoTokenProvider := ssocreds.NewSSOTokenProvider(ssoOidcClient, tokenPath)
+
+		var provider aws.CredentialsProvider
+		provider = ssocreds.New(ssoClient, "123456789012", "no-role", ssoData.StartURL, func(options *ssocreds.Options) {
+			options.SSOTokenProvider = ssoTokenProvider
+		})
+
+		// Wrap the provider with aws.CredentialsCache to cache the credentials until their expire time
+		provider = aws.NewCredentialsCache(provider)
+
+		// List associated AWS accounts and roles
+		listAccounts, err := ssoClient.ListAccounts(context.TODO(), &sso.ListAccountsInput{
+			AccessToken: &ssoData.AccessToken,
+		})
+		if err != nil {
+			var aerr *types.UnauthorizedException
+			if errors.As(err, &aerr) {
+				fmt.Printf("Unauthorized. Please run `aws sso login --sso-session %s` to refresh your session.\n", ssoSession)
+				os.Exit(1)
+			} else {
+				panic(err)
+			}
+		}
+
+		var accountRows []table.Row
+		accountColWidths := make(map[string]int)
+		accountColWidths["Name"] = 0
+		accountColWidths["Email Address"] = 0
+		accountColWidths["ID"] = 0
+		accountColWidths["Role"] = 0
+
+		for _, account := range listAccounts.AccountList {
+			// Create account table rows
+			accountColWidths["Name"] = max(accountColWidths["Name"], len(aws.ToString(account.AccountName)))
+			accountColWidths["Email Address"] = max(accountColWidths["Email Address"], len(aws.ToString(account.EmailAddress)))
+			accountColWidths["ID"] = max(accountColWidths["ID"], len(aws.ToString(account.AccountId)))
+
+			// Account Roles
+			listAccountRoles, err := ssoClient.ListAccountRoles(context.TODO(), &sso.ListAccountRolesInput{
+				AccessToken: &ssoData.AccessToken,
+				AccountId:   account.AccountId,
+			})
+			if err != nil {
+				panic(err)
+			}
+			for _, role := range listAccountRoles.RoleList {
+				accountRows = append(accountRows, table.Row{aws.ToString(account.AccountName), aws.ToString(account.EmailAddress), aws.ToString(account.AccountId), aws.ToString(role.RoleName)})
+				accountColWidths["Role"] = max(accountColWidths["Role"], len(aws.ToString(role.RoleName)))
+				// fmt.Printf("  %s\n", *role.RoleName)
+			}
+		}
+		// Create bubbles table ssoSessionColumns based on colWidths
+		accountColumns := []table.Column{
+			{Title: "Name", Width: accountColWidths["Name"]},
+			{Title: "Email Address", Width: accountColWidths["Email Address"]},
+			{Title: "ID", Width: accountColWidths["ID"]},
+			{Title: "Role", Width: accountColWidths["Role"]},
+		}
+
+		// Create bubbles table
+		at := table.New(
+			table.WithColumns(accountColumns),
+			table.WithRows(accountRows),
+			table.WithFocused(true),
+			table.WithHeight(min(len(accountRows), 10)),
+		)
+
+		at.SetStyles(s)
+
+		// Choose an account
+		ap := tea.NewProgram(newAccountsModel(at, accountColumns))
+		am, err := ap.Run()
+		if err != nil {
+			fmt.Println("Error running program:", err)
+			os.Exit(1)
+		}
+
+		// Assert the final tea.Model to our local model and print the choice.
+		var accountName, accountRegion string
+		if am, ok := am.(accountsModel); ok && am.choice != "" {
+			fmt.Printf("\n---\nYou chose %s!\n", am.choice)
+			accountName = am.choice
+			accountRegion = am.region
+		} else {
+			os.Exit(1)
+		}
+		_, _ = accountName, accountRegion
+
 	},
 }
 
@@ -139,6 +264,7 @@ var baseStyle = lipgloss.NewStyle().
 
 type model struct {
 	choice  string
+	region  string
 	columns []table.Column
 	names   []table.Column
 	choices table.Model
@@ -240,6 +366,7 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.choices.SetColumns(m.names)
 		case "enter":
 			m.choice = m.choices.SelectedRow()[0]
+			m.region = m.choices.SelectedRow()[2]
 			return m, tea.Quit
 		}
 	}
@@ -260,4 +387,105 @@ func showFirstColumnOnly(columns []table.Column) []table.Column {
 		ret = append(ret, col)
 	}
 	return ret
+}
+
+type SSOData struct {
+	AccessToken      string `json:"accessToken"`
+	ExpiresAt        string `json:"expiresAt"`
+	Region           string `json:"region"`
+	StartURL         string `json:"startUrl"`
+	SSORegion        string `json:"ssoRegion"`
+	AccountID        string `json:"accountId"`
+	RoleName         string `json:"roleName"`
+	IdentityProvider string `json:"identityProvider"`
+}
+
+type accountsModel struct {
+	choice  string
+	region  string
+	columns []table.Column
+	names   []table.Column
+	choices table.Model
+	help    help.Model
+	keyMap  keyMap
+}
+
+func newAccountsModel(choices table.Model, columns []table.Column) accountsModel {
+	return accountsModel{
+		columns: columns,
+		names:   showFirstColumnOnly(columns),
+		choices: choices,
+		help:    help.New(),
+		keyMap: keyMap{
+			LineUp: key.NewBinding(
+				key.WithKeys("up", "k"),
+				key.WithHelp("↑/k", "up"),
+			),
+			LineDown: key.NewBinding(
+				key.WithKeys("down", "j"),
+				key.WithHelp("↓/j", "down"),
+			),
+			PageUp: key.NewBinding(
+				key.WithKeys("b", "pgup"),
+				key.WithHelp("b/pgup", "page up"),
+			),
+			PageDown: key.NewBinding(
+				key.WithKeys("f", "pgdown", " "),
+				key.WithHelp("f/pgdn", "page down"),
+			),
+			HalfPageUp: key.NewBinding(
+				key.WithKeys("u", "ctrl+u"),
+				key.WithHelp("u", "½ page up"),
+			),
+			HalfPageDown: key.NewBinding(
+				key.WithKeys("d", "ctrl+d"),
+				key.WithHelp("d", "½ page down"),
+			),
+			GotoTop: key.NewBinding(
+				key.WithKeys("home", "g"),
+				key.WithHelp("g/home", "go to start"),
+			),
+			GotoBottom: key.NewBinding(
+				key.WithKeys("end", "G"),
+				key.WithHelp("G/end", "go to end"),
+			),
+			Expand: key.NewBinding(
+				key.WithKeys("right", "l"),
+				key.WithHelp("→/l", "expand"),
+			),
+			Collapse: key.NewBinding(
+				key.WithKeys("left", "h"),
+				key.WithHelp("←/h", "collapse"),
+			),
+		},
+	}
+}
+
+func (m accountsModel) Init() tea.Cmd {
+	return nil
+}
+
+func (m accountsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "ctrl+c", "q", "esc":
+			return m, tea.Quit
+		case tea.KeyRight.String(), "l":
+			m.choices.SetColumns(m.columns)
+		case tea.KeyLeft.String(), "h":
+			m.choices.SetColumns(m.names)
+		case "enter":
+			m.choice = m.choices.SelectedRow()[0]
+			m.region = m.choices.SelectedRow()[2]
+			return m, tea.Quit
+		}
+	}
+	m.choices, cmd = m.choices.Update(msg)
+	return m, cmd
+}
+
+func (m accountsModel) View() string {
+	return "\nAWS accounts in session:\n" + baseStyle.Render(m.choices.View()) + "\n" + m.help.View(m.keyMap)
 }
