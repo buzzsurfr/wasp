@@ -13,9 +13,6 @@ type ConfigFile struct {
 	Profiles    *Profiles
 	Services    *Services
 	SSOSessions *SSOSessions
-
-	// colWidths is a map of section types to a map of property names to column widths
-	colWidths map[string]map[string]int
 }
 
 type Section interface {
@@ -35,7 +32,7 @@ func (cf ConfigFile) SSOSession(name string) *SSOSession {
 	return cf.SSOSessions.Name(name)
 }
 
-func (cf ConfigFile) LoadConfig(source string) error {
+func (cf ConfigFile) Load(source string) error {
 	// Load config file
 	cf.file = source
 	configFile, err := ini.LoadSources(
@@ -105,14 +102,9 @@ func NewFromConfig(source string) (*ConfigFile, error) {
 		Profiles:    newProfiles(),
 		Services:    newServices(),
 		SSOSessions: newSSOSessions(),
-		colWidths: map[string]map[string]int{
-			"profile":     make(map[string]int),
-			"service":     make(map[string]int),
-			"sso-session": make(map[string]int),
-		},
 	}
 
-	err := ret.LoadConfig(source)
+	err := ret.Load(source)
 	if err != nil {
 		return nil, err
 	}
