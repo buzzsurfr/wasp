@@ -43,18 +43,8 @@ discovery of AWS SSO sessions.`,
 		// Create Bubbles table for SSO sessions
 		t := cf.SSOSessions.TableModel(10)
 		t.SetColumns(showFirstColumnOnly(cf.SSOSessions.TableColumns()))
-
-		s := table.DefaultStyles()
-		s.Header = s.Header.
-			BorderStyle(lipgloss.NormalBorder()).
-			BorderForeground(lipgloss.Color("240")).
-			BorderBottom(true).
-			Bold(false)
-		s.Selected = s.Selected.
-			Foreground(lipgloss.Color("229")).
-			Background(lipgloss.Color("57")).
-			Bold(false)
-		t.SetStyles(s)
+		t.Focus()
+		t.SetStyles(tableStyle)
 
 		// Choose a sso session
 		p := tea.NewProgram(newModel(t, cf.SSOSessions.TableColumns()))
@@ -166,7 +156,7 @@ discovery of AWS SSO sessions.`,
 			table.WithHeight(min(len(accountRows), 10)),
 		)
 
-		at.SetStyles(s)
+		at.SetStyles(tableStyle)
 
 		// Choose an account
 		ap := tea.NewProgram(newAccountsModel(at, accountColumns))
@@ -195,6 +185,9 @@ discovery of AWS SSO sessions.`,
 	},
 }
 
+var baseStyle lipgloss.Style // baseStyle is the default style for any text
+var tableStyle table.Styles  // tableStyle is the default style for any table
+
 func init() {
 	rootCmd.AddCommand(initCmd)
 
@@ -207,11 +200,23 @@ func init() {
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
 	// initCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
 
-var baseStyle = lipgloss.NewStyle().
-	BorderStyle(lipgloss.HiddenBorder()).
-	BorderForeground(lipgloss.Color("240"))
+	baseStyle = lipgloss.NewStyle().
+		BorderStyle(lipgloss.HiddenBorder()).
+		BorderForeground(lipgloss.Color("240"))
+
+	tableStyle = table.DefaultStyles()
+	tableStyle.Header = tableStyle.Header.
+		BorderStyle(lipgloss.NormalBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		BorderBottom(true).
+		Bold(false)
+	tableStyle.Selected = tableStyle.Selected.
+		Foreground(lipgloss.Color("229")).
+		Background(lipgloss.Color("57")).
+		Bold(false)
+
+}
 
 type model struct {
 	choice  string
