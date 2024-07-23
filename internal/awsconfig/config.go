@@ -87,7 +87,7 @@ func (cf ConfigFile) SSOSession(name string) *SSOSession {
 	return session
 }
 
-func (cf ConfigFile) Load(source string) error {
+func (cf *ConfigFile) Load(source string) error {
 	// Load config file
 	cf.file = source
 	configFile, err := ini.LoadSources(
