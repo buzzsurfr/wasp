@@ -74,6 +74,55 @@ func (cf ConfigFile) Load(source string) error {
 	return nil
 }
 
+func (cf *ConfigFile) Update() error {
+	// Merge profiles back into the ini file
+	for _, profile := range cf.Profiles.m {
+		var section *ini.Section
+		// Duplicate from default profile if it doesn't exist
+		if !cf.iniFile.HasSection("profile " + profile.Name) {
+			defaultSection, err := cf.iniFile.GetSection("default")
+			if err != nil {
+				// No defaults found. This should only happen if the config file is empty of malformed.
+				return err
+			}
+			section, _ = cf.iniFile.NewSection("profile " + profile.Name)
+			for key, value := range defaultSection.KeysHash() {
+				section.Key(key).SetValue(value)
+			}
+		} else {
+			section, _ = cf.iniFile.GetSection("profile " + profile.Name)
+		}
+		section.Key("sso_session").SetValue(profile.SSOSession)
+		section.Key("sso_account_id").SetValue(profile.AccountID)
+		section.Key("sso_role_name").SetValue(profile.RoleName)
+	}
+
+	// Unimplemented: not fully implemented since not handling services
+	// Merge services back into the ini file
+	// for _, service := range cf.Services.m {
+	// 	var section *ini.Section
+	// 	section, _ := cf.iniFile.Section("service " + service.Name)
+	// }
+
+	// Merge SSO sessions back into the ini file
+	for _, session := range cf.SSOSessions.m {
+		section := cf.iniFile.Section("sso-session " + session.Name)
+		section.Key("sso_start_url").SetValue(session.StartURL)
+		section.Key("sso_region").SetValue(session.Region)
+		section.Key("sso_account_id").SetValue(session.AccountID)
+		section.Key("sso_role_name").SetValue(session.RoleName)
+		section.Key("sso_registration_scopes").SetValue(strings.Join(session.RegistrationScopes, ","))
+	}
+
+	// Write the ini file back to disk
+	err := cf.iniFile.SaveTo(cf.file)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
 // splitSectionText splits the section name into section type and section name.
 // It takes a section string as input and returns the section type and section name as strings.
 // If the section name is unsectioned, it returns "unused" as the section type and the default section name.
