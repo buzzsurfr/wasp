@@ -7,7 +7,7 @@ type Service struct {
 	Name string
 }
 
-func newService(name string) *Service {
+func NewService(name string) *Service {
 	return &Service{
 		Name: name,
 	}
@@ -36,7 +36,7 @@ func newServices() *Services {
 }
 
 func (s *Services) NewFromSection(name string, section *ini.Section) error {
-	service := newService(name)
+	service := NewService(name)
 	err := section.MapTo(service)
 	if err != nil {
 		return err

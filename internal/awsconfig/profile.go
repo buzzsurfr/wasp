@@ -13,7 +13,7 @@ type Profile struct {
 	RoleName   string      `ini:"sso_role_name"`
 }
 
-func newProfile(name string) *Profile {
+func NewProfile(name string) *Profile {
 	return &Profile{
 		Name:    name,
 		Session: nil,
@@ -46,7 +46,7 @@ func newProfiles() *Profiles {
 }
 
 func (p *Profiles) NewFromSection(name string, section *ini.Section) error {
-	profile := newProfile(name)
+	profile := NewProfile(name)
 	err := section.MapTo(profile)
 	if err != nil {
 		return err

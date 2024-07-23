@@ -16,7 +16,7 @@ type SSOSession struct {
 	RegistrationScopes []string `ini:"sso_registration_scopes,omitempty"`
 }
 
-func newSSOSession(name string) *SSOSession {
+func NewSSOSession(name string) *SSOSession {
 	return &SSOSession{
 		Name: name,
 	}
@@ -50,7 +50,7 @@ func newSSOSessions() *SSOSessions {
 }
 
 func (s *SSOSessions) NewFromSection(name string, section *ini.Section) error {
-	session := newSSOSession(name)
+	session := NewSSOSession(name)
 	err := section.MapTo(session)
 	if err != nil {
 		return err

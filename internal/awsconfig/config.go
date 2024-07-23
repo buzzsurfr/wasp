@@ -1,6 +1,7 @@
 package awsconfig
 
 import (
+	"fmt"
 	"strings"
 
 	"gopkg.in/ini.v1"
@@ -20,16 +21,70 @@ type Section interface {
 	colWidths() map[string]int
 }
 
+func (cf ConfigFile) GetProfile(name string) (*Profile, error) {
+	profile := cf.Profiles.m[name]
+	if profile == nil {
+		return nil, fmt.Errorf("profile %s not found", name)
+	}
+	return profile, nil
+}
+
+func (cf ConfigFile) HasProfile(name string) bool {
+	profile, _ := cf.GetProfile(name)
+	return profile != nil
+}
+
 func (cf ConfigFile) Profile(name string) *Profile {
-	return cf.Profiles.Name(name)
+	profile, err := cf.GetProfile(name)
+	if err != nil {
+		// Create if it doesn't exist
+		cf.Profiles.m[name] = NewProfile(name)
+	}
+	return profile
+}
+
+func (cf ConfigFile) GetService(name string) (*Service, error) {
+	service := cf.Services.m[name]
+	if service == nil {
+		return nil, fmt.Errorf("service %s not found", name)
+	}
+	return service, nil
+}
+
+func (cf ConfigFile) HasService(name string) bool {
+	service, _ := cf.GetService(name)
+	return service != nil
 }
 
 func (cf ConfigFile) Service(name string) *Service {
-	return cf.Services.Name(name)
+	service, err := cf.GetService(name)
+	if err != nil {
+		// Create if it doesn't exist
+		cf.Services.m[name] = NewService(name)
+	}
+	return service
+}
+
+func (cf ConfigFile) GetSSOSession(name string) (*SSOSession, error) {
+	session := cf.SSOSessions.m[name]
+	if session == nil {
+		return nil, fmt.Errorf("SSO session %s not found", name)
+	}
+	return session, nil
+}
+
+func (cf ConfigFile) HasSSOSession(name string) bool {
+	session, _ := cf.GetSSOSession(name)
+	return session != nil
 }
 
 func (cf ConfigFile) SSOSession(name string) *SSOSession {
-	return cf.SSOSessions.Name(name)
+	session, err := cf.GetSSOSession(name)
+	if err != nil {
+		// Create if it doesn't exist
+		cf.SSOSessions.m[name] = NewSSOSession(name)
+	}
+	return session
 }
 
 func (cf ConfigFile) Load(source string) error {
