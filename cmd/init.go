@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -17,13 +16,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sso"
 	"github.com/aws/aws-sdk-go-v2/service/sso/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
+	awsconfig "github.com/buzzsurfr/wasp/internal/awsconfig"
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
-	"gopkg.in/ini.v1"
 )
 
 // initCmd represents the init command
@@ -34,69 +33,16 @@ var initCmd = &cobra.Command{
 	Long: `Initialize (wasp init) will create a new wasp configuration file and start
 discovery of AWS SSO sessions.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Read AWS config file
-		awsConfig, err := ini.Load(config.DefaultSharedConfigFilename())
+
+		// Load AWS config file
+		cf, err := awsconfig.NewFromConfig(config.DefaultSharedConfigFilename())
 		if err != nil {
 			panic(err)
 		}
 
-		// Parse session names and profile names
-		// var ssoSessionNames []string
-		var profileNames []string
-
-		var rows []table.Row
-		colWidths := make(map[string]int)
-		colWidths["Name"] = 0
-		colWidths["Start URL"] = 0
-		colWidths["Region"] = 0
-
-		for _, section := range awsConfig.Sections() {
-			str := strings.Split(section.Name(), " ")
-			var sectionType, sectionName string
-			if len(str) < 2 {
-				// AWS Config files don't allow unsectioned keys
-				if str[0] == ini.DefaultSection {
-					continue
-				}
-				sectionType = "profile"
-				sectionName = str[0] // Should be "default"
-			} else {
-				sectionType = str[0]
-				sectionName = str[1]
-			}
-			// fmt.Printf("%s: %s\n", sectionType, sectionName)
-			switch sectionType {
-			case "profile":
-				profileNames = append(profileNames, sectionName)
-			case "sso-session":
-				// ssoSessionNames = append(ssoSessionNames, sectionName)
-				rows = append(rows, table.Row{sectionName, section.Key("sso_start_url").Value(), section.Key("sso_region").Value()})
-				colWidths["Name"] = max(colWidths["Name"], len(sectionName))
-				colWidths["Start URL"] = max(colWidths["Start URL"], len(section.Key("sso_start_url").Value()))
-				colWidths["Region"] = max(colWidths["Region"], len(section.Key("sso_region").Value()))
-			}
-
-			// for _, key := range section.Keys() {
-			// 	fmt.Printf("\t%s = %s\n", key.Name(), key.Value())
-			// }
-		}
-		// fmt.Printf("SSO Sessions: %v\n", ssoSessionNames)
-		fmt.Printf("Profiles: %v\n", profileNames)
-
-		// Create bubbles table ssoSessionColumns based on colWidths
-		ssoSessionColumns := []table.Column{
-			{Title: "Name", Width: colWidths["Name"]},
-			{Title: "Start URL", Width: colWidths["Start URL"]},
-			{Title: "Region", Width: colWidths["Region"]},
-		}
-
-		// Create bubbles table
-		t := table.New(
-			table.WithColumns(showFirstColumnOnly(ssoSessionColumns)),
-			table.WithRows(rows),
-			table.WithFocused(true),
-			table.WithHeight(min(len(rows), 10)),
-		)
+		// Create Bubbles table for SSO sessions
+		t := cf.SSOSessions.TableModel(10)
+		t.SetColumns(showFirstColumnOnly(cf.SSOSessions.TableColumns()))
 
 		s := table.DefaultStyles()
 		s.Header = s.Header.
@@ -111,7 +57,7 @@ discovery of AWS SSO sessions.`,
 		t.SetStyles(s)
 
 		// Choose a sso session
-		p := tea.NewProgram(newModel(t, ssoSessionColumns))
+		p := tea.NewProgram(newModel(t, cf.SSOSessions.TableColumns()))
 		m, err := p.Run()
 		if err != nil {
 			fmt.Println("Error running program:", err)
@@ -231,16 +177,27 @@ discovery of AWS SSO sessions.`,
 		}
 
 		// Assert the final tea.Model to our local model and print the choice.
-		var accountName, accountRegion string
+		var accountId, roleName string
 		if am, ok := am.(accountsModel); ok && am.choice != "" {
-			fmt.Printf("\n---\nYou chose %s!\n", am.choice)
-			accountName = am.choice
-			accountRegion = am.region
+			// fmt.Printf("\n---\nYou chose %s!\n", am.choice)
+			accountId = am.choice
+			roleName = am.region
 		} else {
 			os.Exit(1)
 		}
-		_, _ = accountName, accountRegion
+		fmt.Printf("Account ID: %s\n", accountId)
+		fmt.Printf("Role Name: %s\n", roleName)
 
+		// Add new section to ini file for profile
+		// awsConfig.NewSection("profile " + accountId + "_" + roleName)
+		// for _, key := range awsConfig.Section("default").Keys() {
+		// 	awsConfig.Section("profile "+accountId+"_"+roleName).NewKey(key.Name(), key.Value())
+		// }
+		// awsConfig.Section("profile "+accountId+"_"+roleName).NewKey("sso_account_id", accountId)
+		// awsConfig.Section("profile "+accountId+"_"+roleName).NewKey("sso_role_name", roleName)
+		// awsConfig.Section("profile "+accountId+"_"+roleName).NewKey("sso_session", ssoSession)
+
+		// awsConfig.SaveTo(config.DefaultSharedConfigFilename())
 	},
 }
 
@@ -477,8 +434,8 @@ func (m accountsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyLeft.String(), "h":
 			m.choices.SetColumns(m.names)
 		case "enter":
-			m.choice = m.choices.SelectedRow()[0]
-			m.region = m.choices.SelectedRow()[2]
+			m.choice = m.choices.SelectedRow()[2]
+			m.region = m.choices.SelectedRow()[3]
 			return m, tea.Quit
 		}
 	}
