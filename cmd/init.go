@@ -188,16 +188,10 @@ discovery of AWS SSO sessions.`,
 		fmt.Printf("Account ID: %s\n", accountId)
 		fmt.Printf("Role Name: %s\n", roleName)
 
-		// Add new section to ini file for profile
-		// awsConfig.NewSection("profile " + accountId + "_" + roleName)
-		// for _, key := range awsConfig.Section("default").Keys() {
-		// 	awsConfig.Section("profile "+accountId+"_"+roleName).NewKey(key.Name(), key.Value())
-		// }
-		// awsConfig.Section("profile "+accountId+"_"+roleName).NewKey("sso_account_id", accountId)
-		// awsConfig.Section("profile "+accountId+"_"+roleName).NewKey("sso_role_name", roleName)
-		// awsConfig.Section("profile "+accountId+"_"+roleName).NewKey("sso_session", ssoSession)
-
-		// awsConfig.SaveTo(config.DefaultSharedConfigFilename())
+		err = cf.Update()
+		if err != nil {
+			panic(err)
+		}
 	},
 }
 
