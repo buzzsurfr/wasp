@@ -133,23 +133,35 @@ func (cf *ConfigFile) Update() error {
 	// Merge profiles back into the ini file
 	for _, profile := range cf.Profiles.m {
 		var section *ini.Section
+		var section_name string
 		// Duplicate from default profile if it doesn't exist
-		if !cf.iniFile.HasSection("profile " + profile.Name) {
+		if profile.Name == "default" {
+			section_name = "default"
+		} else {
+			section_name = "profile " + profile.Name
+		}
+		if !cf.iniFile.HasSection(section_name) {
 			defaultSection, err := cf.iniFile.GetSection("default")
 			if err != nil {
 				// No defaults found. This should only happen if the config file is empty of malformed.
 				return err
 			}
-			section, _ = cf.iniFile.NewSection("profile " + profile.Name)
+			section, _ = cf.iniFile.NewSection(section_name)
 			for key, value := range defaultSection.KeysHash() {
 				section.Key(key).SetValue(value)
 			}
 		} else {
-			section, _ = cf.iniFile.GetSection("profile " + profile.Name)
+			section, _ = cf.iniFile.GetSection(section_name)
 		}
-		section.Key("sso_session").SetValue(profile.SSOSession)
-		section.Key("sso_account_id").SetValue(profile.AccountID)
-		section.Key("sso_role_name").SetValue(profile.RoleName)
+		if profile.SSOSession != "" {
+			section.Key("sso_session").SetValue(profile.SSOSession)
+		}
+		if profile.AccountID != "" {
+			section.Key("sso_account_id").SetValue(profile.AccountID)
+		}
+		if profile.RoleName != "" {
+			section.Key("sso_role_name").SetValue(profile.RoleName)
+		}
 	}
 
 	// Unimplemented: not fully implemented since not handling services
@@ -164,8 +176,8 @@ func (cf *ConfigFile) Update() error {
 		section := cf.iniFile.Section("sso-session " + session.Name)
 		section.Key("sso_start_url").SetValue(session.StartURL)
 		section.Key("sso_region").SetValue(session.Region)
-		section.Key("sso_account_id").SetValue(session.AccountID)
-		section.Key("sso_role_name").SetValue(session.RoleName)
+		// section.Key("sso_account_id").SetValue(session.AccountID)
+		// section.Key("sso_role_name").SetValue(session.RoleName)
 		section.Key("sso_registration_scopes").SetValue(strings.Join(session.RegistrationScopes, ","))
 	}
 
