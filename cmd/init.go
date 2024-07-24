@@ -167,16 +167,18 @@ discovery of AWS SSO sessions.`,
 		}
 
 		// Assert the final tea.Model to our local model and print the choice.
-		var accountId, roleName string
-		if am, ok := am.(accountsModel); ok && am.choice != "" {
-			// fmt.Printf("\n---\nYou chose %s!\n", am.choice)
-			accountId = am.choice
-			roleName = am.region
+		var profile *awsconfig.Profile
+		if am, ok := am.(accountsModel); ok && am.accountName != "" {
+			profile_name := fmt.Sprintf("%s_%s", am.accountName, am.roleName)
+			profile = cf.Profile(profile_name)
+			profile.Name = profile_name
+			profile.SSOSession = ssoSession
+			profile.AccountID = am.accountId
+			profile.RoleName = am.roleName
 		} else {
 			os.Exit(1)
 		}
-		fmt.Printf("Account ID: %s\n", accountId)
-		fmt.Printf("Role Name: %s\n", roleName)
+		fmt.Printf("[profile %s]\nsso_session = %s\nsso_account_id = %s\nsso_role_name = %s\n", profile.Name, profile.SSOSession, profile.AccountID, profile.RoleName)
 
 		err = cf.Update()
 		if err != nil {
@@ -357,13 +359,15 @@ type SSOData struct {
 }
 
 type accountsModel struct {
-	choice  string
-	region  string
-	columns []table.Column
-	names   []table.Column
-	choices table.Model
-	help    help.Model
-	keyMap  keyMap
+	accountName  string
+	accountId    string
+	emailAddress string
+	roleName     string
+	columns      []table.Column
+	names        []table.Column
+	choices      table.Model
+	help         help.Model
+	keyMap       keyMap
 }
 
 func newAccountsModel(choices table.Model, columns []table.Column) accountsModel {
@@ -433,8 +437,11 @@ func (m accountsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyLeft.String(), "h":
 			m.choices.SetColumns(m.names)
 		case "enter":
-			m.choice = m.choices.SelectedRow()[2]
-			m.region = m.choices.SelectedRow()[3]
+			m.accountName = m.choices.SelectedRow()[0]
+			m.emailAddress = m.choices.SelectedRow()[1]
+			m.accountId = m.choices.SelectedRow()[2]
+			m.roleName = m.choices.SelectedRow()[3]
+
 			return m, tea.Quit
 		}
 	}

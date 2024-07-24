@@ -6,11 +6,12 @@ import (
 )
 
 type Profile struct {
-	Name       string      `ini:"-"`
-	Session    *SSOSession `ini:"-"`
-	SSOSession string      `ini:"sso_session"`
-	AccountID  string      `ini:"sso_account_id"`
-	RoleName   string      `ini:"sso_role_name"`
+	Name        string      `ini:"-"`
+	Session     *SSOSession `ini:"-"`
+	SSOSession  string      `ini:"sso_session"`
+	AccountName string      `ini:"-"`
+	AccountID   string      `ini:"sso_account_id"`
+	RoleName    string      `ini:"sso_role_name"`
 }
 
 func NewProfile(name string) *Profile {
@@ -22,10 +23,10 @@ func NewProfile(name string) *Profile {
 
 func (p *Profile) colWidths() map[string]int {
 	return map[string]int{
-		"name":        len(p.Name),
-		"sso_session": len(p.SSOSession),
-		"account_id":  len(p.AccountID),
-		"role_name":   len(p.RoleName),
+		"account_name": len(p.AccountName),
+		"sso_session":  len(p.SSOSession),
+		"account_id":   len(p.AccountID),
+		"role_name":    len(p.RoleName),
 	}
 }
 
@@ -83,7 +84,7 @@ func (p *Profiles) TableModel(maxRows int) table.Model {
 	var rows []table.Row
 	for _, profile := range p.m {
 		rows = append(rows, table.Row{
-			profile.Name,
+			profile.AccountName,
 			profile.SSOSession,
 			profile.AccountID,
 			profile.RoleName,
@@ -99,7 +100,7 @@ func (p *Profiles) TableModel(maxRows int) table.Model {
 
 func (p *Profiles) TableColumns() []table.Column {
 	return []table.Column{
-		{Title: "Name", Width: p.colWidths["name"]},
+		{Title: "Account Name", Width: p.colWidths["account_name"]},
 		{Title: "SSO Session", Width: p.colWidths["sso_session"]},
 		{Title: "Account ID", Width: p.colWidths["account_id"]},
 		{Title: "Role Name", Width: p.colWidths["role_name"]},

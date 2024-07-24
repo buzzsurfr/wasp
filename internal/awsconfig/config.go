@@ -35,12 +35,12 @@ func (cf ConfigFile) HasProfile(name string) bool {
 }
 
 func (cf ConfigFile) Profile(name string) *Profile {
-	profile, err := cf.GetProfile(name)
+	_, err := cf.GetProfile(name)
 	if err != nil {
 		// Create if it doesn't exist
 		cf.Profiles.m[name] = NewProfile(name)
 	}
-	return profile
+	return cf.Profiles.m[name]
 }
 
 func (cf ConfigFile) GetService(name string) (*Service, error) {
@@ -57,12 +57,12 @@ func (cf ConfigFile) HasService(name string) bool {
 }
 
 func (cf ConfigFile) Service(name string) *Service {
-	service, err := cf.GetService(name)
+	_, err := cf.GetService(name)
 	if err != nil {
 		// Create if it doesn't exist
 		cf.Services.m[name] = NewService(name)
 	}
-	return service
+	return cf.Services.m[name]
 }
 
 func (cf ConfigFile) GetSSOSession(name string) (*SSOSession, error) {
@@ -79,12 +79,12 @@ func (cf ConfigFile) HasSSOSession(name string) bool {
 }
 
 func (cf ConfigFile) SSOSession(name string) *SSOSession {
-	session, err := cf.GetSSOSession(name)
+	_, err := cf.GetSSOSession(name)
 	if err != nil {
 		// Create if it doesn't exist
 		cf.SSOSessions.m[name] = NewSSOSession(name)
 	}
-	return session
+	return cf.SSOSessions.m[name]
 }
 
 func (cf *ConfigFile) Load(source string) error {
