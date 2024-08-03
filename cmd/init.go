@@ -21,6 +21,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/huh"
 	"github.com/charmbracelet/lipgloss"
 	"github.com/spf13/cobra"
 )
@@ -47,7 +48,7 @@ discovery of AWS SSO sessions.`,
 		t.SetStyles(tableStyle)
 
 		// Choose a sso session
-		p := tea.NewProgram(newModel(t, cf.SSOSessions.TableColumns()))
+		p := tea.NewProgram(newModel(t, cf.SSOSessions.TableColumns(), cf.SSOSessions.FormOptions()))
 		m, err := p.Run()
 		if err != nil {
 			fmt.Println("Error running program:", err)
@@ -223,6 +224,9 @@ func init() {
 type model struct {
 	choice  string
 	region  string
+	form    *huh.Form
+	login   bool
+	session *awsconfig.SSOSession
 	columns []table.Column
 	names   []table.Column
 	choices table.Model
@@ -256,10 +260,12 @@ func (km keyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-func newModel(choices table.Model, columns []table.Column) model {
-	return model{
+func newModel(choices table.Model, columns []table.Column, options []huh.Option[*awsconfig.SSOSession]) model {
+	m := model{
 		columns: columns,
 		names:   showFirstColumnOnly(columns),
+		login:   false,
+		session: awsconfig.NewSSOSession(""),
 		choices: choices,
 		help:    help.New(),
 		keyMap: keyMap{
@@ -305,13 +311,35 @@ func newModel(choices table.Model, columns []table.Column) model {
 			),
 		},
 	}
+	f := huh.NewForm(
+		huh.NewGroup(
+			// List of SSO sessions
+			huh.NewSelect[*awsconfig.SSOSession]().
+				Title("Select a SSO session:").
+				Options(options...).
+				Value(&m.session),
+			huh.NewConfirm().
+				TitleFunc((func() string {
+					return fmt.Sprintf("Login to SSO session %s", m.session.Name)
+				}), &m.session).
+				DescriptionFunc((func() string {
+					return fmt.Sprintf("Unauthorized. Okay to run `aws sso login --sso-session %s`?", m.session.Name)
+				}), &m.session).
+				Affirmative("Login").
+				Negative("Cancel").
+				Value(&m.login),
+		),
+	)
+	m.form = f
+	return m
 }
 
 func (m model) Init() tea.Cmd {
-	return nil
+	return m.form.Init()
 }
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmds []tea.Cmd
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
@@ -329,11 +357,18 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 	}
 	m.choices, cmd = m.choices.Update(msg)
-	return m, cmd
+	cmds = append(cmds, cmd)
+	form, cmd := m.form.Update(msg)
+	if f, ok := form.(*huh.Form); ok {
+		m.form = f
+		cmds = append(cmds, cmd)
+	}
+	return m, tea.Batch(cmds...)
 }
 
 func (m model) View() string {
-	return "\nSelect a SSO session:\n" + baseStyle.Render(m.choices.View()) + "\n" + m.help.View(m.keyMap)
+	// return "\nSelect a SSO session:\n" + baseStyle.Render(m.choices.View()) + "\n" + m.help.View(m.keyMap)
+	return m.form.View()
 }
 
 func showFirstColumnOnly(columns []table.Column) []table.Column {

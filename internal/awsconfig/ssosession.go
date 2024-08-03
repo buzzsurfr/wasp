@@ -1,9 +1,11 @@
 package awsconfig
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/charmbracelet/bubbles/table"
+	"github.com/charmbracelet/huh"
 	"gopkg.in/ini.v1"
 )
 
@@ -98,6 +100,14 @@ func (s *SSOSessions) TableModel(maxRows int) table.Model {
 		table.WithRows(rows),
 		table.WithHeight(min(len(rows), maxRows)),
 	)
+}
+
+func (s *SSOSessions) FormOptions() []huh.Option[*SSOSession] {
+	var options []huh.Option[*SSOSession]
+	for _, session := range s.m {
+		options = append(options, huh.NewOption(fmt.Sprintf("%s (%s in %s)", session.Name, session.StartURL, session.Region), session))
+	}
+	return options
 }
 
 func (s *SSOSessions) TableColumns() []table.Column {
