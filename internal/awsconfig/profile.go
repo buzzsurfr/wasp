@@ -23,6 +23,7 @@ func NewProfile(name string) *Profile {
 
 func (p *Profile) colWidths() map[string]int {
 	return map[string]int{
+		"profile_name": len(p.Name),
 		"account_name": len(p.AccountName),
 		"sso_session":  len(p.SSOSession),
 		"account_id":   len(p.AccountID),
@@ -84,6 +85,7 @@ func (p *Profiles) TableModel(maxRows int) table.Model {
 	var rows []table.Row
 	for _, profile := range p.m {
 		rows = append(rows, table.Row{
+			profile.Name,
 			profile.AccountName,
 			profile.SSOSession,
 			profile.AccountID,
@@ -100,6 +102,7 @@ func (p *Profiles) TableModel(maxRows int) table.Model {
 
 func (p *Profiles) TableColumns() []table.Column {
 	return []table.Column{
+		{Title: "Profile", Width: p.colWidths["profile_name"]},
 		{Title: "Account Name", Width: p.colWidths["account_name"]},
 		{Title: "SSO Session", Width: p.colWidths["sso_session"]},
 		{Title: "Account ID", Width: p.colWidths["account_id"]},
