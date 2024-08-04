@@ -11,6 +11,8 @@ import (
 	awsconfig "github.com/buzzsurfr/wasp/internal/awsconfig"
 	"github.com/charmbracelet/bubbles/table"
 	tea "github.com/charmbracelet/bubbletea"
+	"github.com/charmbracelet/lipgloss"
+	"github.com/muesli/termenv"
 
 	"github.com/spf13/cobra"
 )
@@ -24,6 +26,21 @@ var switchCmd = &cobra.Command{
 current profile in the AWS_PROFILE and AWS_DEFAULT_PROFILE environment
 variables.`,
 	Run: func(cmd *cobra.Command, args []string) {
+		lipgloss.SetColorProfile(termenv.NewOutput(os.Stderr).Profile)
+		baseStyle = lipgloss.NewStyle().
+			BorderStyle(lipgloss.HiddenBorder()).
+			BorderForeground(lipgloss.Color("240"))
+
+		tableStyle = table.DefaultStyles()
+		tableStyle.Header = tableStyle.Header.
+			BorderStyle(lipgloss.NormalBorder()).
+			BorderForeground(lipgloss.Color("240")).
+			BorderBottom(true).
+			Bold(false)
+		tableStyle.Selected = tableStyle.Selected.
+			Foreground(lipgloss.Color("229")).
+			Background(lipgloss.Color("57")).
+			Bold(false)
 
 		// Load AWS config file
 		cf, err := awsconfig.NewFromConfig(config.DefaultSharedConfigFilename())
@@ -38,7 +55,7 @@ variables.`,
 		t.SetStyles(tableStyle)
 
 		// Choose a profile
-		p := tea.NewProgram(newProfileModel(t, cf.Profiles.TableColumns()))
+		p := tea.NewProgram(newProfileModel(t, cf.Profiles.TableColumns()), tea.WithOutput(os.Stderr))
 		m, err := p.Run()
 		if err != nil {
 			fmt.Println("Error running program:", err)
