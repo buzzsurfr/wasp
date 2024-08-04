@@ -23,3 +23,11 @@ Then run this command to get the starter interface:
 ```
 wasp init
 ```
+
+## Profile Switching
+
+You can switch profiles (with the context around SSO sessions) by running
+
+```
+eval $(wasp switch)
+```
