@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"os/exec"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -48,22 +49,24 @@ discovery of AWS SSO sessions.`,
 		t.SetStyles(tableStyle)
 
 		// Choose a sso session
-		p := tea.NewProgram(newModel(t, cf.SSOSessions.TableColumns(), cf.SSOSessions.FormOptions()))
-		m, err := p.Run()
-		if err != nil {
-			fmt.Println("Error running program:", err)
-			os.Exit(1)
-		}
+		// p := tea.NewProgram(newModel(t, cf.SSOSessions.TableColumns(), cf.SSOSessions.FormOptions()))
+		// m, err := p.Run()
+		// if err != nil {
+		// 	fmt.Println("Error running program:", err)
+		// 	os.Exit(1)
+		// }
 
 		// Assert the final tea.Model to our local model and print the choice.
 		var ssoSession, ssoRegion string
-		if m, ok := m.(model); ok && m.choice != "" {
-			// fmt.Printf("\n---\nYou chose %s!\n", m.choice)
-			ssoSession = m.choice
-			ssoRegion = m.region
-		} else {
-			os.Exit(1)
-		}
+		// if m, ok := m.(model); ok && m.choice != "" {
+		// 	// fmt.Printf("\n---\nYou chose %s!\n", m.choice)
+		// 	ssoSession = m.choice
+		// 	ssoRegion = m.region
+		// } else {
+		// 	os.Exit(1)
+		// }
+		ssoSession = "corp"
+		ssoRegion = "us-east-1"
 
 		cfg, err := config.LoadDefaultConfig(context.Background())
 		if err != nil {
@@ -101,16 +104,26 @@ discovery of AWS SSO sessions.`,
 		provider = aws.NewCredentialsCache(provider)
 
 		// List associated AWS accounts and roles
-		listAccounts, err := ssoClient.ListAccounts(context.TODO(), &sso.ListAccountsInput{
-			AccessToken: &ssoData.AccessToken,
-		})
-		if err != nil {
-			var aerr *types.UnauthorizedException
-			if errors.As(err, &aerr) {
-				fmt.Printf("Unauthorized. Please run `aws sso login --sso-session %s` to refresh your session.\n", ssoSession)
-				os.Exit(1)
-			} else {
-				panic(err)
+		var listAccounts *sso.ListAccountsOutput
+		for retries := 0; retries < 2; retries++ {
+			listAccounts, err = ssoClient.ListAccounts(context.TODO(), &sso.ListAccountsInput{
+				AccessToken: &ssoData.AccessToken,
+			})
+			if err != nil {
+				var aerr *types.UnauthorizedException
+				if errors.As(err, &aerr) {
+					// fmt.Printf("Unauthorized. Please run `aws sso login --sso-session %s` to refresh your session.\n", ssoSession)
+					fmt.Printf("Unauthorized. Attempting to login to %s SSO session.\n", ssoSession)
+					cmd := exec.Command("aws", "sso", "login", "--sso-session", ssoSession)
+					if err := cmd.Run(); err != nil {
+						fmt.Printf("Unauthorized. Please run `aws sso login --sso-session %s` to refresh your session.\n", ssoSession)
+						os.Exit(1)
+					} else {
+						continue
+					}
+				} else {
+					panic(err)
+				}
 			}
 		}
 
