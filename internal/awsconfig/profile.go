@@ -1,7 +1,7 @@
 package awsconfig
 
 import (
-	"github.com/charmbracelet/bubbles/table"
+	"charm.land/bubbles/v2/table"
 	"gopkg.in/ini.v1"
 )
 

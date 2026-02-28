@@ -9,10 +9,9 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/config"
 	awsconfig "github.com/buzzsurfr/wasp/internal/awsconfig"
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/muesli/termenv"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 
 	"github.com/spf13/cobra"
 )
@@ -26,7 +25,6 @@ var switchCmd = &cobra.Command{
 current profile in the AWS_PROFILE and AWS_DEFAULT_PROFILE environment
 variables.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		lipgloss.SetColorProfile(termenv.NewOutput(os.Stderr).Profile)
 		baseStyle = lipgloss.NewStyle().
 			BorderStyle(lipgloss.HiddenBorder()).
 			BorderForeground(lipgloss.Color("240"))
@@ -64,7 +62,6 @@ variables.`,
 		if m, ok := m.(profileModel); ok && cf.HasProfile(m.profileName) {
 			fmt.Printf("export AWS_PROFILE=%s\n", m.profileName)
 		} else {
-			// fmt.Println("Profile not found")
 			os.Exit(1)
 		}
 	},
@@ -72,16 +69,6 @@ variables.`,
 
 func init() {
 	rootCmd.AddCommand(switchCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// switchCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// switchCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 type profileModel struct {
@@ -108,7 +95,7 @@ func (m profileModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			m.quitting = true
@@ -125,9 +112,9 @@ func (m profileModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m profileModel) View() string {
+func (m profileModel) View() tea.View {
 	if m.quitting {
-		return ""
+		return tea.NewView("")
 	}
-	return m.table.View() + "\n\n\n"
+	return tea.NewView(m.table.View() + "\n\n\n")
 }

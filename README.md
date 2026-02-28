@@ -2,6 +2,12 @@
 
 AWS SSO Profiles CLI
 
+Built with [Bubble Tea v2](https://charm.land/blog/v2/), [Lip Gloss v2](https://charm.land/lipgloss/), and [Bubbles v2](https://charm.land/bubbles/) from the [Charm](https://charm.land) ecosystem.
+
+## Requirements
+
+- Go 1.24.2 or later
+
 ## Installation
 
 Have go installed, then run

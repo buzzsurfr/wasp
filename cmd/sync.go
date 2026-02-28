@@ -19,7 +19,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sso/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
 	awsconfig "github.com/buzzsurfr/wasp/internal/awsconfig"
-	tea "github.com/charmbracelet/bubbletea"
+	tea "charm.land/bubbletea/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -84,7 +84,6 @@ create or update profiles based on the SSO sessions found in the AWS config file
 				if err != nil {
 					var aerr *types.UnauthorizedException
 					if errors.As(err, &aerr) {
-						// fmt.Printf("Unauthorized. Please run `aws sso login --sso-session %s` to refresh your session.\n", ssoSession)
 						fmt.Printf("Unauthorized. Attempting to login to %s SSO session.\n", session.Name)
 						cmd := exec.Command("aws", "sso", "login", "--sso-session", session.Name)
 						if err := cmd.Run(); err != nil {
@@ -127,16 +126,6 @@ create or update profiles based on the SSO sessions found in the AWS config file
 
 func init() {
 	rootCmd.AddCommand(syncCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// syncCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// syncCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 type stringMsg string
@@ -246,7 +235,7 @@ func (m syncModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
@@ -268,6 +257,6 @@ func (m syncModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m syncModel) View() string {
-	return m.status + "\n"
+func (m syncModel) View() tea.View {
+	return tea.NewView(m.status + "\n")
 }

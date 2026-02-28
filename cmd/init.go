@@ -18,12 +18,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sso/types"
 	"github.com/aws/aws-sdk-go-v2/service/ssooidc"
 	awsconfig "github.com/buzzsurfr/wasp/internal/awsconfig"
-	"github.com/charmbracelet/bubbles/help"
-	"github.com/charmbracelet/bubbles/key"
-	"github.com/charmbracelet/bubbles/table"
-	tea "github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/huh"
-	"github.com/charmbracelet/lipgloss"
+	"charm.land/bubbles/v2/help"
+	"charm.land/bubbles/v2/key"
+	"charm.land/bubbles/v2/table"
+	tea "charm.land/bubbletea/v2"
+	"charm.land/lipgloss/v2"
 	"github.com/spf13/cobra"
 )
 
@@ -39,7 +38,8 @@ discovery of AWS SSO sessions.`,
 		// Load AWS config file
 		cf, err := awsconfig.NewFromConfig(config.DefaultSharedConfigFilename())
 		if err != nil {
-			panic(err)
+			fmt.Fprintln(os.Stderr, "No AWS config file found. Create one first with: aws configure")
+			os.Exit(1)
 		}
 
 		// Create Bubbles table for SSO sessions
@@ -49,22 +49,7 @@ discovery of AWS SSO sessions.`,
 		t.SetStyles(tableStyle)
 
 		// Choose a sso session
-		// p := tea.NewProgram(newModel(t, cf.SSOSessions.TableColumns(), cf.SSOSessions.FormOptions()))
-		// m, err := p.Run()
-		// if err != nil {
-		// 	fmt.Println("Error running program:", err)
-		// 	os.Exit(1)
-		// }
-
-		// Assert the final tea.Model to our local model and print the choice.
 		var ssoSession, ssoRegion string
-		// if m, ok := m.(model); ok && m.choice != "" {
-		// 	// fmt.Printf("\n---\nYou chose %s!\n", m.choice)
-		// 	ssoSession = m.choice
-		// 	ssoRegion = m.region
-		// } else {
-		// 	os.Exit(1)
-		// }
 		ssoSession = "corp"
 		ssoRegion = "us-east-1"
 
@@ -112,7 +97,6 @@ discovery of AWS SSO sessions.`,
 			if err != nil {
 				var aerr *types.UnauthorizedException
 				if errors.As(err, &aerr) {
-					// fmt.Printf("Unauthorized. Please run `aws sso login --sso-session %s` to refresh your session.\n", ssoSession)
 					fmt.Printf("Unauthorized. Attempting to login to %s SSO session.\n", ssoSession)
 					cmd := exec.Command("aws", "sso", "login", "--sso-session", ssoSession)
 					if err := cmd.Run(); err != nil {
@@ -151,7 +135,6 @@ discovery of AWS SSO sessions.`,
 			for _, role := range listAccountRoles.RoleList {
 				accountRows = append(accountRows, table.Row{aws.ToString(account.AccountName), aws.ToString(account.EmailAddress), aws.ToString(account.AccountId), aws.ToString(role.RoleName)})
 				accountColWidths["Role"] = max(accountColWidths["Role"], len(aws.ToString(role.RoleName)))
-				// fmt.Printf("  %s\n", *role.RoleName)
 			}
 		}
 		// Create bubbles table ssoSessionColumns based on colWidths
@@ -207,16 +190,6 @@ var tableStyle table.Styles  // tableStyle is the default style for any table
 func init() {
 	rootCmd.AddCommand(initCmd)
 
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// initCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// initCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-
 	baseStyle = lipgloss.NewStyle().
 		BorderStyle(lipgloss.HiddenBorder()).
 		BorderForeground(lipgloss.Color("240"))
@@ -231,20 +204,6 @@ func init() {
 		Foreground(lipgloss.Color("229")).
 		Background(lipgloss.Color("57")).
 		Bold(false)
-
-}
-
-type model struct {
-	choice  string
-	region  string
-	form    *huh.Form
-	login   bool
-	session *awsconfig.SSOSession
-	columns []table.Column
-	names   []table.Column
-	choices table.Model
-	help    help.Model
-	keyMap  keyMap
 }
 
 type keyMap struct {
@@ -271,128 +230,6 @@ func (km keyMap) FullHelp() [][]key.Binding {
 		{km.LineUp, km.LineDown, km.GotoTop, km.GotoBottom},
 		{km.PageUp, km.PageDown, km.HalfPageUp, km.HalfPageDown},
 	}
-}
-
-func newModel(choices table.Model, columns []table.Column, options []huh.Option[*awsconfig.SSOSession]) model {
-	m := model{
-		columns: columns,
-		names:   showFirstColumnOnly(columns),
-		login:   false,
-		session: awsconfig.NewSSOSession(""),
-		choices: choices,
-		help:    help.New(),
-		keyMap: keyMap{
-			LineUp: key.NewBinding(
-				key.WithKeys("up", "k"),
-				key.WithHelp("↑/k", "up"),
-			),
-			LineDown: key.NewBinding(
-				key.WithKeys("down", "j"),
-				key.WithHelp("↓/j", "down"),
-			),
-			PageUp: key.NewBinding(
-				key.WithKeys("b", "pgup"),
-				key.WithHelp("b/pgup", "page up"),
-			),
-			PageDown: key.NewBinding(
-				key.WithKeys("f", "pgdown", " "),
-				key.WithHelp("f/pgdn", "page down"),
-			),
-			HalfPageUp: key.NewBinding(
-				key.WithKeys("u", "ctrl+u"),
-				key.WithHelp("u", "½ page up"),
-			),
-			HalfPageDown: key.NewBinding(
-				key.WithKeys("d", "ctrl+d"),
-				key.WithHelp("d", "½ page down"),
-			),
-			GotoTop: key.NewBinding(
-				key.WithKeys("home", "g"),
-				key.WithHelp("g/home", "go to start"),
-			),
-			GotoBottom: key.NewBinding(
-				key.WithKeys("end", "G"),
-				key.WithHelp("G/end", "go to end"),
-			),
-			Expand: key.NewBinding(
-				key.WithKeys("right", "l"),
-				key.WithHelp("→/l", "expand"),
-			),
-			Collapse: key.NewBinding(
-				key.WithKeys("left", "h"),
-				key.WithHelp("←/h", "collapse"),
-			),
-		},
-	}
-	f := huh.NewForm(
-		huh.NewGroup(
-			// List of SSO sessions
-			huh.NewSelect[*awsconfig.SSOSession]().
-				Title("Select a SSO session:").
-				Options(options...).
-				Value(&m.session),
-			huh.NewConfirm().
-				TitleFunc((func() string {
-					return fmt.Sprintf("Login to SSO session %s", m.session.Name)
-				}), &m.session).
-				DescriptionFunc((func() string {
-					return fmt.Sprintf("Unauthorized. Okay to run `aws sso login --sso-session %s`?", m.session.Name)
-				}), &m.session).
-				Affirmative("Login").
-				Negative("Cancel").
-				Value(&m.login),
-		),
-	)
-	m.form = f
-	return m
-}
-
-func (m model) Init() tea.Cmd {
-	return m.form.Init()
-}
-
-func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	var cmds []tea.Cmd
-	var cmd tea.Cmd
-	switch msg := msg.(type) {
-	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q", "esc":
-			return m, tea.Quit
-		case tea.KeyRight.String(), "l":
-			m.choices.SetColumns(m.columns)
-		case tea.KeyLeft.String(), "h":
-			m.choices.SetColumns(m.names)
-		case "enter":
-			m.choice = m.choices.SelectedRow()[0]
-			m.region = m.choices.SelectedRow()[2]
-			return m, tea.Quit
-		}
-	}
-	m.choices, cmd = m.choices.Update(msg)
-	cmds = append(cmds, cmd)
-	form, cmd := m.form.Update(msg)
-	if f, ok := form.(*huh.Form); ok {
-		m.form = f
-		cmds = append(cmds, cmd)
-	}
-	return m, tea.Batch(cmds...)
-}
-
-func (m model) View() string {
-	// return "\nSelect a SSO session:\n" + baseStyle.Render(m.choices.View()) + "\n" + m.help.View(m.keyMap)
-	return m.form.View()
-}
-
-func showFirstColumnOnly(columns []table.Column) []table.Column {
-	ret := []table.Column{}
-	for i, col := range columns {
-		if i > 0 {
-			col.Width = -1
-		}
-		ret = append(ret, col)
-	}
-	return ret
 }
 
 type SSOData struct {
@@ -476,13 +313,13 @@ func (m accountsModel) Init() tea.Cmd {
 func (m accountsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	switch msg := msg.(type) {
-	case tea.KeyMsg:
+	case tea.KeyPressMsg:
 		switch msg.String() {
 		case "ctrl+c", "q", "esc":
 			return m, tea.Quit
-		case tea.KeyRight.String(), "l":
+		case "right", "l":
 			m.choices.SetColumns(m.columns)
-		case tea.KeyLeft.String(), "h":
+		case "left", "h":
 			m.choices.SetColumns(m.names)
 		case "enter":
 			m.accountName = m.choices.SelectedRow()[0]
@@ -497,6 +334,17 @@ func (m accountsModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m accountsModel) View() string {
-	return "\nAWS accounts in session:\n" + baseStyle.Render(m.choices.View()) + "\n" + m.help.View(m.keyMap)
+func (m accountsModel) View() tea.View {
+	return tea.NewView("\nAWS accounts in session:\n" + baseStyle.Render(m.choices.View()) + "\n" + m.help.View(m.keyMap))
+}
+
+func showFirstColumnOnly(columns []table.Column) []table.Column {
+	ret := []table.Column{}
+	for i, col := range columns {
+		if i > 0 {
+			col.Width = -1
+		}
+		ret = append(ret, col)
+	}
+	return ret
 }
